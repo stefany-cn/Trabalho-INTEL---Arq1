@@ -179,6 +179,7 @@ imprime:
 	MOV AX, count_linha
 	ADD AX, '0'
 	MOV num_linha, AX
+	MOV[num_linha+1], '$'
 	MOV AH, PRINTSTR
     LEA DX, num_linha
     INT 21H
