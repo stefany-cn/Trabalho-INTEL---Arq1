@@ -21,7 +21,7 @@ LESTR       EQU 0AH
 
 .data
 cmd_line		DB ?
-EOL         	DB CR, LF, '$'
+eol         	DB CR, LF, '$'
 vet_ant      	DB ?
 vet_atual    	DB ?
 vet_prox    	DB ?
@@ -32,6 +32,9 @@ file_buffer		DB ?
 file_handle		DW 0		; Handler do arquivo
 buffer_word		DB ?
 buffer_read  	DB ?
+erro_abre_arq	DB "-- Erro ao abrir o arquivo", CR, LF, "$"
+arq_aberto		DB "-- Arquivo aberto", CR, LF, "$"
+file_name		DB "ola.txt", "$"
 
 .code
 
@@ -53,18 +56,28 @@ buffer_read  	DB ?
 	
 	POP ES 				; retorna os dados dos registradores de segmentos
 	POP DS
-	
-	;tira espaços do nome do arquivo
+
+;tira espaços do nome do arquivo
     CALL parsingNomeArq
-    ;printa nome do arquivo
-    MOV AH, PRINTSTR
-    LEA DX, cmd_line
-    INT 21H	
-	
+;abre arquivo
+	MOV AH, ABREARQ
+	MOV AL, 0
+	LEA DX, cmd_line
+	INT 21H
+	JNC arqAberto
+	MOV AH, PRINTSTR
+    LEA DX, erro_abre_arq
+    INT 21H	 
+	JMP fim
+arqAberto:
+	; MOV AH, PRINTSTR
+    ; LEA DX, arq_aberto
+    ; INT 21H
+
     ;CALL askInput
     
     ;CALL readString
-    
+fim:
     .exit
 ;============ função para ler string do teclado (pega do moodle) =======
 readString	proc	near
@@ -115,6 +128,10 @@ firstParsing:
 	INC BX
 	JMP loopParsing
 fimParsing:
+	MOV AL, 0
+	MOV [cmd_line+BX], AL
+	;INC BX
+	;MOV [cmd_line+BX], '$'
 	POP AX
 	POP BX
 	
