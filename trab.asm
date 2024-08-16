@@ -1,7 +1,4 @@
-;=============================================
-;       FUNCIONANDO ATÉ PEGAR A STRING!
-;               NÃO MODIFICAR
-;=============================================
+
 
 
 CR          EQU 0DH
@@ -20,21 +17,29 @@ LESTR       EQU 0AH
 .stack
 
 .data
-cmd_line		DB 20 DUP(?)
+
 eol         	DB CR, LF, '$'
-vet_ant      	DB 20 DUP(?)
-vet_atual    	DB 20 DUP(?)
-vet_prox    	DB 20 DUP(?)
-count_lin    	DB 0
+vet_ant      	DB 20 DUP('$')
+vet_atual    	DB 20 DUP('$')
+vet_prox    	DB 20 DUP('$')
+count_letra    	DW -1
+count_linha    	DW 1
 ask_input   	DB "-- Que palavra voce quer buscar?", CR, LF, "$"
-word_to_find	DB 20 DUP(?)										; Nome do arquivo a ser lido
-file_buffer		DB 20 DUP(?)
+word_to_find	DB 20 DUP('$')										; Nome do arquivo a ser lido
+file_buffer		DB 20 DUP('$')
 file_handle		DW 0												; Handler do arquivo
-buffer_word		DB 20 DUP(?)
-buffer_read  	DB 20 DUP(?)
+buffer_word		DB 20 DUP('$')
+buffer_read  	DB 20 DUP('$')
 erro_abre_arq	DB "-- Erro ao abrir o arquivo", CR, LF, "$"
-arq_aberto		DB "-- Arquivo aberto", CR, LF, "$"
-file_name		DB "ola.txt", "$"
+word_not_found	DB "-- Palavra nao encontrada!", CR, LF, "$"
+word_found		DB "-- Palavra encontrada!", CR, LF, "$"
+;mem = 119
+file_name		DB "ola.txt", 0
+cmd_line		DB 255 DUP(0)
+
+
+
+
 
 .code
 
@@ -57,6 +62,8 @@ file_name		DB "ola.txt", "$"
 	POP ES 				; retorna os dados dos registradores de segmentos
 	POP DS
 
+	MOV AX, DS
+	MOV ES, AX
 ;tira espaços do nome do arquivo
     CALL parsingNomeArq
 ;abre arquivo
@@ -65,11 +72,13 @@ file_name		DB "ola.txt", "$"
 	LEA DX, cmd_line
 	INT 21H
 	JNC arqAberto
+;mensagem de erro ao abrir o arquivo
 	MOV AH, PRINTSTR
     LEA DX, erro_abre_arq
     INT 21H	 
 	JMP fim
 arqAberto:
+	MOV file_handle, AX
 	; MOV AH, PRINTSTR
     ; LEA DX, arq_aberto
     ; INT 21H
@@ -77,11 +86,62 @@ arqAberto:
     CALL askInput
     
     CALL readString
+leChar:
+	
+leCharLoop:
+	LEA DX, buffer_read
+	MOV BX, file_handle   
+    MOV AH, 3FH
+    MOV CX, 1
+    INT 21H
 
+	MOV BX, count_letra
+	INC BX
+	CMP [buffer_read], ' '
+	JE compara
+	MOV AL, [buffer_read]
+	MOV [vet_atual+BX], AL
+	MOV count_letra, BX
+	;CMP [buffer_read+BX], CR
+	;JE inc_linha
+	JMP leCharLoop
+inc_linha:
+	INC count_linha    
+compara:
+	MOV count_letra, BX
+	MOV BX, -1
+loopCompara:
+    INC BX
+	MOV AL, [vet_atual+BX]
+    CMP AL, [word_to_find+BX]
+    JNE fimCompara
+	DEC count_letra
+	CMP count_letra, 0
+	JE imprime
+    JMP loopCompara
+fimCompara:
+    
+    MOV AH, PRINTSTR
+    LEA DX, word_not_found
+    INT 21H
+	JMP fim
+imprime:
+	
+    
+    MOV AH, PRINTSTR
+    LEA DX, word_found
+    INT 21H
+
+	MOV AH, PRINTSTR
+    LEA DX, vet_atual
+    INT 21H
+	
 fim:
     .exit
 ;============ função para ler string do teclado (pega do moodle) =======
 readString	proc	near
+	PUSH DI
+	PUSH SI
     MOV AH, LESTR
     LEA DX, buffer_word
     MOV byte ptr buffer_word, 20
@@ -96,7 +156,9 @@ readString	proc	near
     REP MOVSB
     
 	MOV	byte ptr ES:[DI], 0
-    MOV	byte ptr ES:[DI+1], '$'
+    ;MOV	byte ptr ES:[DI+1], '$'
+	POP SI
+	POP DI
 	RET
 
 readString	endp
@@ -115,18 +177,15 @@ parsingNomeArq PROC NEAR
 inicParsing:
 	CMP [cmd_line], ' '	;COMPARA PRIMEIRA POSIÇÃO COM ESPAÇO
 	JNE fimParsing
-	MOV BX, -1
+	MOV BX, 0
 loopParsing:
 	INC BX
-	CMP BX, 0
-	JZ firstParsing
-	CMP [cmd_line+BX], ' '
-	JE fimParsing
-firstParsing:
 	MOV AL, [cmd_line+BX]
 	DEC BX
 	MOV [cmd_line+BX], AL
 	INC BX
+	CMP [cmd_line+BX], ' '
+	JE fimParsing
 	JMP loopParsing
 fimParsing:
 	MOV AL, 0
