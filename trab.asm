@@ -17,23 +17,27 @@ LESTR       EQU 0AH
 .stack
 
 .data
-
+file_handle		DW 0												; Handler do arquivo
+count_letra    	DW -1
+count_linha    	DW 1
+count_word		dw -1
+flag_fim_arq	DB 0
+flag_inc_linha	DB 0
 eol         	DB CR, LF, '$'
 vet_ant      	DB 20 DUP('$')
 vet_atual    	DB 20 DUP('$')
 vet_prox    	DB 20 DUP('$')
-count_letra    	DW -1
-count_linha    	DW 1
-ask_input   	DB "-- Que palavra voce quer buscar?", CR, LF, "$"
-word_to_find	DB 20 DUP('$')										; Nome do arquivo a ser lido
+word_to_find	DB 20 DUP(?)										
 file_buffer		DB 20 DUP('$')
-file_handle		DW 0												; Handler do arquivo
 buffer_word		DB 20 DUP('$')
 buffer_read  	DB 20 DUP('$')
+ask_input   	DB "-- Que palavra voce quer buscar?", CR, LF, "$"
 erro_abre_arq	DB "-- Erro ao abrir o arquivo", CR, LF, "$"
 word_not_found	DB "-- Palavra nao encontrada!", CR, LF, "$"
 word_found		DB "-- Palavra encontrada!", CR, LF, "$"
-;mem = 119
+linha			DB "Linha ", "$"
+dois_pontos		DB ": ", "$"
+num_linha		dw 20 DUP('$')
 file_name		DB "ola.txt", 0
 cmd_line		DB 255 DUP(0)
 
@@ -86,8 +90,18 @@ arqAberto:
     CALL askInput
     
     CALL readString
-leChar:
+
+	MOV BX, -1
+contWord:
+	INC BX
+	INC count_word
+	CMP [word_to_find+BX], 0
+	JNE contWord
 	
+	
+
+
+
 leCharLoop:
 	LEA DX, buffer_read
 	MOV BX, file_handle   
@@ -99,16 +113,26 @@ leCharLoop:
 	INC BX
 	CMP [buffer_read], ' '
 	JE compara
+	CMP [buffer_read], CR
+	JE inc_linha
+	CMP [buffer_read], LF
+	JE flagFim
+	OR AX, AX 
+	JZ fimArq
 	MOV AL, [buffer_read]
 	MOV [vet_atual+BX], AL
 	MOV count_letra, BX
-	;CMP [buffer_read+BX], CR
-	;JE inc_linha
+	
 	JMP leCharLoop
+fimArq:
+	INC flag_fim_arq
+	JMP compara
 inc_linha:
-	INC count_linha    
+	INC flag_inc_linha   
 compara:
 	MOV count_letra, BX
+	CMP BX, count_word
+	JNE fimCompara
 	MOV BX, -1
 loopCompara:
     INC BX
@@ -120,22 +144,64 @@ loopCompara:
 	JE imprime
     JMP loopCompara
 fimCompara:
-    
-    MOV AH, PRINTSTR
-    LEA DX, word_not_found
-    INT 21H
-	JMP fim
+
+    MOV CX, LENGTHOF vet_atual
+	LEA SI, vet_atual
+	LEA DI, vet_ant
+	REP MOVSB
+
+    ; MOV AH, PRINTSTR
+    ; LEA DX, vet_ant
+    ; INT 21H
+	MOV count_letra, -1
+	CMP flag_inc_linha, 1
+	JNE flagFim
+	INC count_linha
+	MOV [vet_ant], 0
+	MOV [vet_ant+1], '$'
+	DEC flag_inc_linha
+flagFim:
+	CMP flag_fim_arq, 1
+	JE fim
+	JMP leCharLoop
 imprime:
 	
     
     MOV AH, PRINTSTR
     LEA DX, word_found
     INT 21H
+	MOV AH, PRINTSTR
+    LEA DX, linha
+    INT 21H
+
+	MOV AX, count_linha
+	ADD AX, '0'
+	MOV num_linha, AX
+	MOV AH, PRINTSTR
+    LEA DX, num_linha
+    INT 21H
+
+	MOV AH, PRINTSTR
+    LEA DX, dois_pontos
+    INT 21H
+
+	MOV AH, PRINTSTR
+    LEA DX, vet_ant
+    INT 21H
+	
+	MOV AH, PRINTCHAR
+    mov Dl, ' '
+    INT 21H
 
 	MOV AH, PRINTSTR
     LEA DX, vet_atual
     INT 21H
-	
+
+	MOV AH, PRINTSTR
+    LEA DX, eol
+    INT 21H
+
+	JMP leCharLoop
 fim:
     .exit
 ;============ função para ler string do teclado (pega do moodle) =======
@@ -144,6 +210,7 @@ readString	proc	near
 	PUSH SI
     MOV AH, LESTR
     LEA DX, buffer_word
+	
     MOV byte ptr buffer_word, 20
     INT 21H
     
@@ -153,10 +220,11 @@ readString	proc	near
     MOV CH, 0
     MOV AX, DS
     MOV ES, AX
+	
     REP MOVSB
     
 	MOV	byte ptr ES:[DI], 0
-    ;MOV	byte ptr ES:[DI+1], '$'
+    MOV	byte ptr ES:[DI+1], '$'
 	POP SI
 	POP DI
 	RET
