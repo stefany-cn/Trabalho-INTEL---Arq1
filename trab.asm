@@ -20,18 +20,18 @@ LESTR       EQU 0AH
 .stack
 
 .data
-cmd_line		DB ?
+cmd_line		DB 20 DUP(?)
 eol         	DB CR, LF, '$'
-vet_ant      	DB ?
-vet_atual    	DB ?
-vet_prox    	DB ?
+vet_ant      	DB 20 DUP(?)
+vet_atual    	DB 20 DUP(?)
+vet_prox    	DB 20 DUP(?)
 count_lin    	DB 0
 ask_input   	DB "-- Que palavra voce quer buscar?", CR, LF, "$"
-word_to_find	DB ?		; Nome do arquivo a ser lido
-file_buffer		DB ?
-file_handle		DW 0		; Handler do arquivo
-buffer_word		DB ?
-buffer_read  	DB ?
+word_to_find	DB 20 DUP(?)										; Nome do arquivo a ser lido
+file_buffer		DB 20 DUP(?)
+file_handle		DW 0												; Handler do arquivo
+buffer_word		DB 20 DUP(?)
+buffer_read  	DB 20 DUP(?)
 erro_abre_arq	DB "-- Erro ao abrir o arquivo", CR, LF, "$"
 arq_aberto		DB "-- Arquivo aberto", CR, LF, "$"
 file_name		DB "ola.txt", "$"
@@ -74,9 +74,10 @@ arqAberto:
     ; LEA DX, arq_aberto
     ; INT 21H
 
-    ;CALL askInput
+    CALL askInput
     
-    ;CALL readString
+    CALL readString
+
 fim:
     .exit
 ;============ função para ler string do teclado (pega do moodle) =======
