@@ -19,6 +19,7 @@ LESTR       EQU 0AH
 .data
 file_handle		DW 0												; Handler do arquivo
 count_letra    	DW -1
+count_letra2   	DW -1
 count_linha    	DW 1
 count_word		dw -1
 flag_fim_arq	DB 0
@@ -116,12 +117,16 @@ leCharLoop:
 	CMP [buffer_read], CR
 	JE inc_linha
 	CMP [buffer_read], LF
-	JE flagFim
+	JE jump_LF
 	OR AX, AX 
 	JZ fimArq
 	MOV AL, [buffer_read]
 	MOV [vet_atual+BX], AL
+	MOV [vet_atual+BX+1], 0
+	MOV [vet_atual+BX+2], '$'
+
 	MOV count_letra, BX
+	;MOV count_letra2, BX
 	
 	JMP leCharLoop
 fimArq:
@@ -144,15 +149,12 @@ loopCompara:
 	JE imprime
     JMP loopCompara
 fimCompara:
-
+	
     MOV CX, LENGTHOF vet_atual
 	LEA SI, vet_atual
 	LEA DI, vet_ant
 	REP MOVSB
-
-    ; MOV AH, PRINTSTR
-    ; LEA DX, vet_ant
-    ; INT 21H
+jump_LF:
 	MOV count_letra, -1
 	CMP flag_inc_linha, 1
 	JNE flagFim
@@ -167,9 +169,9 @@ flagFim:
 imprime:
 	
     
-    MOV AH, PRINTSTR
-    LEA DX, word_found
-    INT 21H
+    ; MOV AH, PRINTSTR
+    ; LEA DX, word_found
+    ; INT 21H
 	MOV AH, PRINTSTR
     LEA DX, linha
     INT 21H
