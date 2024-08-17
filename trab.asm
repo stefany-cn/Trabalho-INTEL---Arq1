@@ -45,6 +45,8 @@ word_not_found	DB "-- Nao foram encontradas ocorrencias.", CR, LF, "$"
 word_found		DB "-- Fim das ocorrencias.", CR, LF, "$"
 outra_palavra?	DB "-- Quer buscar outra palavra? (S/N)", CR, LF, "$"
 sim_nao			DB "-- Por favor, responda somente S ou N.", CR, LF, "$"
+buffer_resp		DB ?
+resp			DB ?
 linha			DB "Linha ", "$"
 dois_pontos		DB ": ", "$"
 num_linha		dw 20 DUP('$')
@@ -81,6 +83,7 @@ cmd_line		DB 255 DUP(0)
 ;tira espaços do nome do arquivo
     CALL parsingNomeArq
 ;abre arquivo
+inicioProg:
 	MOV AH, ABREARQ
 	MOV AL, 0
 	LEA DX, cmd_line
@@ -91,11 +94,27 @@ cmd_line		DB 255 DUP(0)
     LEA DX, erro_abre_arq
     INT 21H	 
 	JMP fim
-arqAberto:
+arqAberto:	
 	MOV file_handle, AX
-	; MOV AH, PRINTSTR
-    ; LEA DX, arq_aberto
-    ; INT 21H
+	
+;inicializando variaveis e flags
+	MOV flag_encontrou, 0
+	MOV flag_fim_arq, 0
+	MOV flag_igual, 0
+	MOV flag_inc_linha, 0
+	MOV flag_resp, 0
+	MOV flag_sim, 0
+	MOV tam_word, -1
+	MOV count_linha, 1
+
+	MOV CX, LENGTHOF vazio
+	LEA SI, vazio
+	LEA DI, vet_ant
+	REP MOVSB
+	MOV CX, LENGTHOF vazio
+	LEA SI, vazio
+	LEA DI, vet_atual
+	REP MOVSB
 pedePalavra:
 	MOV flag_sim, 0
     CALL askInput
@@ -130,43 +149,44 @@ voltaDeNaoAchou:
 pulaIncLinha:
 	CALL lePalavraArq
 voltaDeAchou:
+	
 	CALL comparaPalavra
 	CMP flag_igual, 1
 	JNE voltaDeNaoAchou
 	CALL imprime
 	CMP flag_fim_arq, 1
 	JNE voltaDeAchou
-
+naoEncontrou:
 	CMP flag_encontrou, 0
 	JNE encontrou
-naoEncontrou:
+
 	MOV AH, PRINTSTR
     LEA DX, word_to_find
     INT 21H
 	MOV AH, PRINTSTR
     LEA DX, eol
     INT 21H
+
 	MOV AH, PRINTSTR
     LEA DX, word_not_found
     INT 21H
-	;JMP continuar?
+	JMP continuar?
 
 encontrou:
 	MOV AH, PRINTSTR
     LEA DX, word_found
     INT 21H
-; continuar?:
-; 	MOV flag_resp, 0
-; 	MOV AH, PRINTSTR
-;     LEA DX, outra_palavra?
-;     INT 21H
+continuar?:
+	;fecha arquivo
+	MOV AH, FECHAARQ
+	MOV BX, file_handle
+	INT 21H
 
-; 	CALL leResposta
+	MOV flag_resp, 0
 
-; 	CMP flag_resp, 1
-; 	JE continuar?
-; 	CMP flag_sim, 1
-; 	JE pedePalavra
+	CALL leResposta
+	CMP flag_sim, 1
+	JE inicioProg
 
 
 fim:
@@ -371,20 +391,27 @@ pulaVetProx:
 	RET
 imprime ENDP
 leResposta PROC NEAR
-	MOV AH, 01H
+inicioLeResp:
+	MOV AH, PRINTSTR
+    LEA DX, outra_palavra?
     INT 21H
 
+	MOV AH, 01H
+    INT 21H
+	MOV resp, AL
+	MOV AH, 01H
+    INT 21H
 	; MOV DL, AL
 	; MOV AH, PRINTCHAR
 	; INT 21H
 
-	CMP AL, 'S'
+	CMP resp, 'S'
 	JE sim
-	CMP AL, 's'
+	CMP resp, 's'
 	JE sim
-	CMP AL, 'N'
+	CMP resp, 'N'
 	JE fimleResposta
-	CMP AL, 'n'
+	CMP resp, 'n'
 	JE fimleResposta
 	MOV AH, PRINTSTR
     LEA DX, eol
@@ -395,8 +422,7 @@ leResposta PROC NEAR
 	MOV AH, PRINTSTR
     LEA DX, eol
     INT 21H
-	MOV flag_resp, 1
-	JMP fimleResposta
+	JMP inicioLeResp
 sim:
 	INC flag_sim
 fimleResposta:
