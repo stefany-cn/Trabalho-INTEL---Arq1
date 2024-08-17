@@ -17,14 +17,21 @@ LESTR       EQU 0AH
 .stack
 
 .data
-file_handle		DW 0												; Handler do arquivo
+file_handle		DW 0	
+file_handle2	DW 0											; Handler do arquivo
 count_letra    	DW -1
 count_letra2   	DW -1
 count_linha    	DW 1
-count_word		dw -1
+tam_word		dw -1
+tam_vetAt		dw -1
 flag_fim_arq	DB 0
 flag_inc_linha	DB 0
+flag_igual		DB 0
+flag_encontrou	DB 0
+flag_sim		DB 0
+flag_resp		DB 0
 eol         	DB CR, LF, '$'
+vazio			DB 20 DUP (0)
 vet_ant      	DB 20 DUP('$')
 vet_atual    	DB 20 DUP('$')
 vet_prox    	DB 20 DUP('$')
@@ -34,8 +41,10 @@ buffer_word		DB 20 DUP('$')
 buffer_read  	DB 20 DUP('$')
 ask_input   	DB "-- Que palavra voce quer buscar?", CR, LF, "$"
 erro_abre_arq	DB "-- Erro ao abrir o arquivo", CR, LF, "$"
-word_not_found	DB "-- Palavra nao encontrada!", CR, LF, "$"
-word_found		DB "-- Palavra encontrada!", CR, LF, "$"
+word_not_found	DB "-- Nao foram encontradas ocorrencias.", CR, LF, "$"
+word_found		DB "-- Fim das ocorrencias.", CR, LF, "$"
+outra_palavra?	DB "-- Quer buscar outra palavra? (S/N)", CR, LF, "$"
+sim_nao			DB "-- Por favor, responda somente S ou N.", CR, LF, "$"
 linha			DB "Linha ", "$"
 dois_pontos		DB ": ", "$"
 num_linha		dw 20 DUP('$')
@@ -87,128 +96,123 @@ arqAberto:
 	; MOV AH, PRINTSTR
     ; LEA DX, arq_aberto
     ; INT 21H
-
+pedePalavra:
+	MOV flag_sim, 0
     CALL askInput
     
-    CALL readString
+    CALL lePalavraInput
 
 	MOV BX, -1
 contWord:
 	INC BX
-	INC count_word
+	INC tam_word
 	CMP [word_to_find+BX], 0
 	JNE contWord
-	
-	
 
-
-
-leCharLoop:
-	LEA DX, buffer_read
-	MOV BX, file_handle   
-    MOV AH, 3FH
-    MOV CX, 1
-    INT 21H
-
-	MOV BX, count_letra
-	INC BX
-	CMP [buffer_read], ' '
-	JE compara
-	CMP [buffer_read], CR
-	JE inc_linha
-	CMP [buffer_read], LF
-	JE jump_LF
-	OR AX, AX 
-	JZ fimArq
-	MOV AL, [buffer_read]
-	MOV [vet_atual+BX], AL
-	MOV [vet_atual+BX+1], 0
-	MOV [vet_atual+BX+2], '$'
-
-	MOV count_letra, BX
-	;MOV count_letra2, BX
-	
-	JMP leCharLoop
-fimArq:
-	INC flag_fim_arq
-	JMP compara
-inc_linha:
-	INC flag_inc_linha   
-compara:
-	MOV count_letra, BX
-	CMP BX, count_word
-	JNE fimCompara
-	MOV BX, -1
-loopCompara:
-    INC BX
-	MOV AL, [vet_atual+BX]
-    CMP AL, [word_to_find+BX]
-    JNE fimCompara
-	DEC count_letra
-	CMP count_letra, 0
-	JE imprime
-    JMP loopCompara
-fimCompara:
-	
+voltaDeNaoAchou:
+	CMP flag_fim_arq, 1
+	JE naoEncontrou
+	;coloca espaço em todo vetor da palavra anterior
+	MOV CX, LENGTHOF vazio
+	LEA SI, vazio
+	LEA DI, vet_ant
+	REP MOVSB
+	;coloca a palavra atual no vetor da palavra anterior
     MOV CX, LENGTHOF vet_atual
 	LEA SI, vet_atual
 	LEA DI, vet_ant
 	REP MOVSB
-jump_LF:
-	MOV count_letra, -1
+
 	CMP flag_inc_linha, 1
-	JNE flagFim
-	INC count_linha
-	MOV [vet_ant], 0
-	MOV [vet_ant+1], '$'
+	JNE pulaIncLinha
 	DEC flag_inc_linha
-flagFim:
+	INC count_linha
+pulaIncLinha:
+	CALL lePalavraArq
+voltaDeAchou:
+	CALL comparaPalavra
+	CMP flag_igual, 1
+	JNE voltaDeNaoAchou
+	CALL imprime
 	CMP flag_fim_arq, 1
-	JE fim
-	JMP leCharLoop
-imprime:
-	
-    
-    ; MOV AH, PRINTSTR
-    ; LEA DX, word_found
-    ; INT 21H
-	MOV AH, PRINTSTR
-    LEA DX, linha
-    INT 21H
+	JNE voltaDeAchou
 
-	MOV AX, count_linha
-	ADD AX, '0'
-	MOV num_linha, AX
-	MOV[num_linha+1], '$'
+	CMP flag_encontrou, 0
+	JNE encontrou
+naoEncontrou:
 	MOV AH, PRINTSTR
-    LEA DX, num_linha
+    LEA DX, word_to_find
     INT 21H
-
-	MOV AH, PRINTSTR
-    LEA DX, dois_pontos
-    INT 21H
-
-	MOV AH, PRINTSTR
-    LEA DX, vet_ant
-    INT 21H
-	
-	MOV AH, PRINTCHAR
-    mov Dl, ' '
-    INT 21H
-
-	MOV AH, PRINTSTR
-    LEA DX, vet_atual
-    INT 21H
-
 	MOV AH, PRINTSTR
     LEA DX, eol
     INT 21H
+	MOV AH, PRINTSTR
+    LEA DX, word_not_found
+    INT 21H
+	;JMP continuar?
 
-	JMP leCharLoop
+encontrou:
+	MOV AH, PRINTSTR
+    LEA DX, word_found
+    INT 21H
+; continuar?:
+; 	MOV flag_resp, 0
+; 	MOV AH, PRINTSTR
+;     LEA DX, outra_palavra?
+;     INT 21H
+
+; 	CALL leResposta
+
+; 	CMP flag_resp, 1
+; 	JE continuar?
+; 	CMP flag_sim, 1
+; 	JE pedePalavra
+
+
 fim:
     .exit
-;============ função para ler string do teclado (pega do moodle) =======
-readString	proc	near
+;-------------- inicio func parsing-----------------
+parsingNomeArq PROC NEAR
+	PUSH BX				;SALVA CONTEXTO
+	PUSH AX
+inicParsing:
+	CMP [cmd_line], ' '	;COMPARA PRIMEIRA POSIÇÃO COM ESPAÇO
+	JNE fimParsing
+	MOV BX, 0
+loopParsing:
+	INC BX
+	MOV AL, [cmd_line+BX]
+	DEC BX
+	MOV [cmd_line+BX], AL
+	INC BX
+	CMP [cmd_line+BX], ' '
+	JE fimParsing
+	JMP loopParsing
+fimParsing:
+	MOV AL, 0
+	MOV [cmd_line+BX], AL
+	POP AX
+	POP BX
+	
+	RET
+parsingNomeArq ENDP
+;------------- fim func parsing -----------------
+;------------- inicio func printar pedido de input -----------------
+askInput PROC NEAR
+    PUSH AX
+    PUSH DX
+    
+    MOV AH, 09H
+    LEA DX, ask_input
+    INT 21H
+    
+    POP DX
+    POP AX
+    RET
+askInput ENDP 
+;------------- fim func printar pedido de input -----------------
+;------------- inicio func pega palavra a ser procurada -----------------
+lePalavraInput	PROC NEAR
 	PUSH DI
 	PUSH SI
     MOV AH, LESTR
@@ -231,55 +235,172 @@ readString	proc	near
 	POP SI
 	POP DI
 	RET
-
-readString	endp
-;------------------ inicio func print string -----------------
-printString	proc	near
-	MOV AH, PRINTSTR
-    LEA DX, word_to_find
-    INT 21H	
-	RET
-printString	endp
-;-------------- fim print string -------------------
-;-------------- inicio func parsing-----------------
-parsingNomeArq PROC NEAR
-	PUSH BX				;SALVA CONTEXTO
-	PUSH AX
-inicParsing:
-	CMP [cmd_line], ' '	;COMPARA PRIMEIRA POSIÇÃO COM ESPAÇO
-	JNE fimParsing
-	MOV BX, 0
-loopParsing:
-	INC BX
-	MOV AL, [cmd_line+BX]
-	DEC BX
-	MOV [cmd_line+BX], AL
-	INC BX
-	CMP [cmd_line+BX], ' '
-	JE fimParsing
-	JMP loopParsing
-fimParsing:
-	MOV AL, 0
-	MOV [cmd_line+BX], AL
-	;INC BX
-	;MOV [cmd_line+BX], '$'
-	POP AX
-	POP BX
-	
-	RET
-parsingNomeArq ENDP
-
-askInput PROC NEAR
-    PUSH AX
-    PUSH DX
-    
-    MOV AH, 09H
-    LEA DX, ask_input
+lePalavraInput	ENDP
+;------------- fim func pega palavra a ser procurada -----------------
+;------------- inicio func le palavra do arquivo -----------------
+lePalavraArq PROC NEAR
+leCharLoop1:
+	LEA DX, buffer_read
+	MOV BX, file_handle  
+    MOV AH, 3FH
+    MOV CX, 1
     INT 21H
-    
-    POP DX
-    POP AX
-    RET
-askInput ENDP 
+
+	MOV BX, count_letra
+	;i = BX
+	INC BX
+	CMP [buffer_read], ' '
+	JE fimLePalavra
+	CMP [buffer_read], CR
+	JE flagIncLinha
+	CMP [buffer_read], LF
+	JE anteriorEraCR
+	OR AX, AX 
+	JZ fimArq
+	MOV AL, [buffer_read]
+	MOV [vet_atual+BX], AL
+	MOV [vet_atual+BX+1], 0
+	MOV [vet_atual+BX+2], '$'
+	MOV count_letra, BX
+	JMP leCharLoop1
+anteriorEraCR:
+	MOV [vet_atual], '$'
+	;MOV [vet_atual+1], 
+	JMP fimLePalavra
+fimArq:
+	MOV flag_fim_arq, 1
+	JMP fimLePalavra
+flagIncLinha:
+	INC flag_inc_linha
+fimLePalavra:
+	MOV count_letra, -1
+	RET
+lePalavraArq ENDP
+;------------- fim func le palavra do arquivo -----------------
+;------------- inicio func compara palavras -----------------
+comparaPalavra PROC NEAR
+contVetAtual:
+	MOV BX, tam_vetAt
+	INC BX
+	INC tam_vetAt
+	CMP [vet_atual+BX], 0
+	JNE contVetAtual
+
+	CMP BX, tam_word
+	JNE fimComparaPalavra
+
+	MOV BX, -1
+loopCompara:
+    INC BX
+	MOV AL, [vet_atual+BX]
+    CMP AL, [word_to_find+BX]
+    JNE fimComparaPalavra
+	DEC tam_vetAt
+	CMP tam_vetAt, 0
+	JE flagIgual
+    JMP loopCompara
+flagIgual:
+	INC flag_igual
+fimComparaPalavra:
+	MOV tam_vetAt, -1
+	RET
+comparaPalavra ENDP
+;------------- fim func compara palavras -----------------
+;------------- inicio func imprime -----------------
+imprime PROC NEAR
+	INC flag_encontrou
+	;seta flag de igual para zero
+	MOV flag_igual, 0
+	
+	;printa palavra "Linha"
+	MOV AH, PRINTSTR
+    LEA DX, linha
+    INT 21H
+	;printa o número da linha
+	MOV AX, count_linha
+	ADD AX, '0'
+	MOV num_linha, AX
+	MOV[num_linha+1], '$'
+	MOV AH, PRINTSTR
+    LEA DX, num_linha
+    INT 21H
+	;printa ":"
+	MOV AH, PRINTSTR
+    LEA DX, dois_pontos
+    INT 21H
+	;printa palavra anterior
+	MOV AH, PRINTSTR
+    LEA DX, vet_ant
+    INT 21H
+	;printa espaço
+	MOV AH, PRINTCHAR
+    mov Dl, ' '
+    INT 21H
+	;printa palavra encontrada
+	MOV AH, PRINTSTR
+    LEA DX, vet_atual
+    INT 21H
+	;printa espaço
+	MOV AH, PRINTCHAR
+    mov Dl, ' '
+    INT 21H
+	;coloca espaço em todo vetor da palavra anterior
+	MOV CX, LENGTHOF vazio
+	LEA SI, vazio
+	LEA DI, vet_ant
+	REP MOVSB
+	;coloca a palavra atual no vetor da palavra anterior
+    MOV CX, LENGTHOF vet_atual
+	LEA SI, vet_atual
+	LEA DI, vet_ant
+	REP MOVSB
+	;le proxima palavra
+	CALL lePalavraArq
+	CMP flag_fim_arq, 1
+	JE pulaVetProx
+	;printa a proxima palavra
+	MOV AH, PRINTSTR
+    LEA DX, vet_atual
+    INT 21H
+pulaVetProx:
+	;printa fim de linha
+	MOV AH, PRINTSTR
+    LEA DX, eol
+    INT 21H
+	;MOV count_letra, -1
+	RET
+imprime ENDP
+leResposta PROC NEAR
+	MOV AH, 01H
+    INT 21H
+
+	; MOV DL, AL
+	; MOV AH, PRINTCHAR
+	; INT 21H
+
+	CMP AL, 'S'
+	JE sim
+	CMP AL, 's'
+	JE sim
+	CMP AL, 'N'
+	JE fimleResposta
+	CMP AL, 'n'
+	JE fimleResposta
+	MOV AH, PRINTSTR
+    LEA DX, eol
+    INT 21H
+	MOV AH, PRINTSTR
+    LEA DX, sim_nao
+    INT 21H
+	MOV AH, PRINTSTR
+    LEA DX, eol
+    INT 21H
+	MOV flag_resp, 1
+	JMP fimleResposta
+sim:
+	INC flag_sim
+fimleResposta:
+	RET
+leResposta ENDP
 
 end
