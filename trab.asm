@@ -22,6 +22,7 @@ file_handle2	DW 0											; Handler do arquivo
 count_letra    	DW -1
 count_letra2   	DW -1
 count_linha    	DW 1
+indice_word		dw 0
 tam_word		dw -1
 tam_vetAt		dw -1
 tam_vetAt2		dw -1
@@ -31,12 +32,14 @@ flag_igual		DB 0
 flag_encontrou	DB 0
 flag_sim		DB 0
 flag_resp		DB 0
+flag_nova_busca DB 0
 eol         	DB CR, LF, '$'
 vazio			DB 20 DUP (0)
 vet_ant      	DB 20 DUP('$')
 vet_atual    	DB 20 DUP('$')
 vet_atualUpper 	DB 20 DUP('$')
-word_to_find	DB 20 DUP(?)										
+word_to_find	DB 20 DUP(?)
+word_toUpper	DB 20 DUP(?)										
 file_buffer		DB 20 DUP('$')
 buffer_word		DB 20 DUP('$')
 buffer_read  	DB 20 DUP('$')
@@ -45,7 +48,9 @@ erro_abre_arq	DB "-- Erro ao abrir o arquivo", CR, LF, "$"
 word_not_found	DB "-- Nao foram encontradas ocorrencias.", CR, LF, "$"
 word_found		DB "-- Fim das ocorrencias.", CR, LF, "$"
 outra_palavra?	DB "-- Quer buscar outra palavra? (S/N)", CR, LF, "$"
-sim_nao			DB "-- Por favor, responda somente S ou N.", CR, LF, "$"
+sim_nao			DB "-- Por favor, responda somente S ou N.", "$"
+encerrando		DB "-- Encerrando.", CR, LF, "$"
+pontuacao		DB "-- Nao e permitida pontuacao e acentuacao.", CR, LF, "$"
 buffer_resp		DB ?
 resp			DB ?
 linha			DB "Linha ", "$"
@@ -105,6 +110,7 @@ arqAberto:
 	MOV flag_inc_linha, 0
 	MOV flag_resp, 0
 	MOV flag_sim, 0
+	
 	MOV tam_word, -1
 	MOV count_linha, 1
 
@@ -116,18 +122,34 @@ arqAberto:
 	LEA SI, vazio
 	LEA DI, vet_atual
 	REP MOVSB
+	MOV CX, LENGTHOF vazio
+	LEA SI, vazio
+	LEA DI, vet_atualUpper
+	REP MOVSB
+	JMP pedePalavra
+
+pedePalavra2:
+	MOV AH, PRINTSTR
+    LEA DX, pontuacao
+    INT 21H
 pedePalavra:
-	MOV flag_sim, 0
     CALL askInput
     
     CALL lePalavraInput
-
 	MOV BX, -1
+	MOV tam_word, -1
 contWord:
 	INC BX
 	INC tam_word
 	CMP [word_to_find+BX], 0
 	JNE contWord
+
+	MOV flag_nova_busca, 0
+	CALL validaBusca
+	CMP flag_nova_busca, 0
+	JNE pedePalavra2
+
+
 
 voltaDeNaoAchou:
 	CMP flag_fim_arq, 1
@@ -190,6 +212,9 @@ continuar?:
 	CMP flag_sim, 1
 	JE inicioProg
 
+	MOV AH, PRINTSTR
+    LEA DX, encerrando
+    INT 21H
 
 fim:
     .exit
@@ -259,6 +284,40 @@ lePalavraInput	PROC NEAR
 	RET
 lePalavraInput	ENDP
 ;------------- fim func pega palavra a ser procurada -----------------
+validaBusca PROC NEAR
+	MOV BX, -1
+	MOV CX, tam_word
+	DEC CX
+	MOV indice_word, CX
+inicioValida:
+	INC BX
+	CMP [word_to_find+BX], 'A'
+	JL pedeNovaPalavra
+	CMP [word_to_find+BX], 'z'
+	JG pedeNovaPalavra
+	CMP [word_to_find+BX], 90
+	JG verifica1
+	CMP [word_to_find+BX], 97
+	JL verifica2
+	JMP fimValidaBusca
+pedeNovaPalavra:
+	INC flag_nova_busca
+	JMP fimValidaBusca
+verifica1:
+	CMP [word_to_find+BX], 97
+	JL pedeNovaPalavra
+	CMP indice_word, BX
+	JE fimValidaBusca
+	JMP inicioValida
+verifica2:
+	CMP [word_to_find+BX], 90
+	JG pedeNovaPalavra
+	CMP indice_word, BX
+	JE fimValidaBusca
+	JMP inicioValida
+fimValidaBusca:
+	RET
+validaBusca ENDP
 ;------------- inicio func le palavra do arquivo -----------------
 lePalavraArq PROC NEAR
 leCharLoop1:
@@ -301,11 +360,13 @@ lePalavraArq ENDP
 ;------------- fim func le palavra do arquivo -----------------
 ;------------- inicio func compara palavras -----------------
 comparaPalavra PROC NEAR
+	CALL toUpper
+	CALL toUpperVetAtual
 contVetAtual:
 	MOV BX, tam_vetAt
 	INC BX
 	INC tam_vetAt
-	CMP [vet_atual+BX], 0
+	CMP [vet_atualUpper+BX], 0
 	JNE contVetAtual
 
 	CMP BX, tam_word
@@ -314,8 +375,8 @@ contVetAtual:
 	MOV BX, -1
 loopCompara:
     INC BX
-	MOV AL, [vet_atual+BX]
-    CMP AL, [word_to_find+BX]
+	MOV AL, [vet_atualUpper+BX]
+    CMP AL, [word_toUpper+BX]
     JNE fimComparaPalavra
 	DEC tam_vetAt
 	CMP tam_vetAt, 0
@@ -359,7 +420,7 @@ imprime PROC NEAR
     mov Dl, ' '
     INT 21H
 
-	CALL toUpper 
+	CALL toUpperVetAtual 
 	;printa palavra encontrada maiuscula
 	MOV AH, PRINTSTR
     LEA DX, vet_atualUpper
@@ -406,9 +467,6 @@ inicioLeResp:
 	MOV resp, AL
 	MOV AH, 01H
     INT 21H
-	; MOV DL, AL
-	; MOV AH, PRINTCHAR
-	; INT 21H
 
 	CMP resp, 'S'
 	JE sim
@@ -418,15 +476,16 @@ inicioLeResp:
 	JE fimleResposta
 	CMP resp, 'n'
 	JE fimleResposta
-	MOV AH, PRINTSTR
-    LEA DX, eol
-    INT 21H
+
+	
+
 	MOV AH, PRINTSTR
     LEA DX, sim_nao
     INT 21H
 	MOV AH, PRINTSTR
     LEA DX, eol
     INT 21H
+
 	JMP inicioLeResp
 sim:
 	INC flag_sim
@@ -434,7 +493,7 @@ fimleResposta:
 	RET
 leResposta ENDP
 
-toUpper PROC NEAR
+toUpperVetAtual PROC NEAR
 	MOV tam_vetAt2, -1
 contVetAtual2:
 	MOV BX, tam_vetAt2
@@ -467,6 +526,43 @@ fimToUpper:
 	MOV [vet_atualUpper+BX+1], 0
 	MOV [vet_atualUpper+BX+2], '$'
 	RET
+toUpperVetAtual ENDP
+
+toUpper PROC NEAR
+
+	MOV BX, -1
+loopUpper2:
+	INC BX
+	CMP [word_to_find+BX], 'a'
+	Jl copia2
+	CMP [word_to_find+BX], 'z'
+	Jg copia2
+	MOV AL, [word_to_find+BX]
+	SUB AL, 20h
+	MOV [word_toUpper+BX], AL
+	CMP BX, tam_word
+	JE fimToUpper2
+	JMP loopUpper2
+copia2:
+	MOV AL, [word_to_find+BX]
+	MOV [word_toUpper+BX], AL
+	CMP BX, tam_word
+	JNE loopUpper2
+fimToUpper2:
+	MOV [word_toUpper+BX+1], 0
+	MOV [word_toUpper+BX+2], '$'
+	RET
 toUpper ENDP
+
+; intToA PROC NEAR
+; 	MOV AX, count_linha
+; 	ADD AX, '0'
+; 	MOV num_linha, AX
+; 	MOV[num_linha+1], '$'
+; 	MOV AH, PRINTSTR
+;     LEA DX, num_linha
+;     INT 21H
+; 	RET
+; intToA ENDP
 
 end
