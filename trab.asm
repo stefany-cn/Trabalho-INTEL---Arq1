@@ -24,6 +24,7 @@ count_letra2   	DW -1
 count_linha    	DW 1
 tam_word		dw -1
 tam_vetAt		dw -1
+tam_vetAt2		dw -1
 flag_fim_arq	DB 0
 flag_inc_linha	DB 0
 flag_igual		DB 0
@@ -34,7 +35,7 @@ eol         	DB CR, LF, '$'
 vazio			DB 20 DUP (0)
 vet_ant      	DB 20 DUP('$')
 vet_atual    	DB 20 DUP('$')
-vet_prox    	DB 20 DUP('$')
+vet_atualUpper 	DB 20 DUP('$')
 word_to_find	DB 20 DUP(?)										
 file_buffer		DB 20 DUP('$')
 buffer_word		DB 20 DUP('$')
@@ -153,6 +154,7 @@ voltaDeAchou:
 	CALL comparaPalavra
 	CMP flag_igual, 1
 	JNE voltaDeNaoAchou
+	
 	CALL imprime
 	CMP flag_fim_arq, 1
 	JNE voltaDeAchou
@@ -356,10 +358,13 @@ imprime PROC NEAR
 	MOV AH, PRINTCHAR
     mov Dl, ' '
     INT 21H
-	;printa palavra encontrada
+
+	CALL toUpper 
+	;printa palavra encontrada maiuscula
 	MOV AH, PRINTSTR
-    LEA DX, vet_atual
+    LEA DX, vet_atualUpper
     INT 21H
+
 	;printa espaço
 	MOV AH, PRINTCHAR
     mov Dl, ' '
@@ -428,5 +433,40 @@ sim:
 fimleResposta:
 	RET
 leResposta ENDP
+
+toUpper PROC NEAR
+	MOV tam_vetAt2, -1
+contVetAtual2:
+	MOV BX, tam_vetAt2
+	INC BX
+	INC tam_vetAt2
+	CMP [vet_atual+BX], 0
+	JNE contVetAtual2
+
+	MOV BX, -1
+loopUpper:
+	INC BX
+	CMP [vet_atual+BX], 'a'
+	Jl copia
+	CMP [vet_atual+BX], 'z'
+	Jg copia
+	MOV AL, [vet_atual+BX]
+	SUB AL, 20h
+	MOV [vet_atualUpper+BX], AL
+	DEC tam_vetAt2
+	CMP tam_vetAt2, 0
+	JE fimToUpper
+	JMP loopUpper
+copia:
+	MOV AL, [vet_atual+BX]
+	MOV [vet_atualUpper+BX], AL
+	DEC tam_vetAt2
+	CMP tam_vetAt2, 0
+	JNE loopUpper
+fimToUpper:
+	MOV [vet_atualUpper+BX+1], 0
+	MOV [vet_atualUpper+BX+2], '$'
+	RET
+toUpper ENDP
 
 end
