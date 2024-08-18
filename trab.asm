@@ -84,13 +84,6 @@ dois_pontos		DB ": ", "$"
 	MOV AX, DS			; Troca DS com ES para poder usa o REP MOVSB
 	MOV BX, ES
 	MOV DS, BX
-	MOV ES, AX
-	MOV SI, 80H 		; Obtem o tamanho da linha de comando e coloca em CX
-	MOV CH, 0
-	MOV CL, [SI]
-	MOV AX, CX 			; Salva o tamanho do string em AX, para uso futuro
-	MOV SI, 81H 		; Inicializa o ponteiro de origem
-	LEA DI, CMD_LINE 	; Inicializa o ponteiro de destino
 	REP MOVSB
 	
 	POP ES 				; retorna os dados dos registradores de segmentos
