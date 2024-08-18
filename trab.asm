@@ -61,12 +61,14 @@ ask_input   	DB "-- Que palavra voce quer buscar?", CR, LF, "$"
 outra_palavra?	DB "-- Quer buscar outra palavra? (S/N)", CR, LF, "$"
 word_not_found	DB "-- Nao foram encontradas ocorrencias.", CR, LF, "$"
 pontuacao		DB "-- Nao e permitida pontuacao e acentuacao.", CR, LF, "$"
+encontradas		DB "-- Foram encontradas as seguintes ocorrencias:", CR, LF, "$"
 linha			DB "Linha ", "$"
 dois_pontos		DB ": ", "$"
 
 ;------------------------------------------------------------------------------------------------------------
 ; 											END DATA SEGMENT
 ;------------------------------------------------------------------------------------------------------------
+
 ;------------------------------------------------------------------------------------------------------------
 ; 											CODE SEGMENT
 ;------------------------------------------------------------------------------------------------------------
@@ -203,7 +205,7 @@ voltaDeAchou:
 	CALL comparaPalavra
 	CMP flag_igual, 1
 	JNE voltaDiferentes
-	
+
 	CALL imprime
 	CMP flag_fim_arq, 1
 	JNE voltaDeAchou
@@ -463,7 +465,14 @@ imprime PROC NEAR
 	INC flag_encontrou
 	;seta flag de igual para zero
 	MOV flag_igual, 0
+	CMP flag_encontrou, 1
+	JG pulaFrase
+
+	MOV AH, PRINTSTR
+    LEA DX, encontradas
+    INT 21H
 	
+pulaFrase:	
 	;printa palavra "Linha"
 	MOV AH, PRINTSTR
     LEA DX, linha
