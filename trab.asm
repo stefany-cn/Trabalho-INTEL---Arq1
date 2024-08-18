@@ -17,52 +17,46 @@ LESTR       EQU 0AH
 .stack
 
 .data
-file_handle		DW 0	
-file_handle2	DW 0											; Handler do arquivo
-count_letra    	DW -1
-count_letra2   	DW -1
-count_linha    	DW 1
-indice_word		dw 0
-tam_word		dw -1
-tam_vetAt		dw -1
-tam_vetAt2		dw -1
-flag_fim_arq	DB 0
-flag_inc_linha	DB 0
-flag_igual		DB 0
-flag_encontrou	DB 0
+
+resp			DB ?
+resto			DB ?
+quociente		DB ?
 flag_sim		DB 0
 flag_resp		DB 0
+flag_igual		DB 0
+file_handle		DW 0										; Handler do arquivo
+indice_word		DW 0
+flag_fim_arq	DB 0
+flag_inc_linha	DB 0
+flag_encontrou	DB 0
 flag_nova_busca DB 0
-eol         	DB CR, LF, '$'
-vazio			DB 20 DUP (0)
-vet_ant      	DB 20 DUP('$')
-vet_atual    	DB 20 DUP('$')
-vet_atualUpper 	DB 20 DUP('$')
+count_linha    	DW 1
+indice			DW -1
+tam_word		DW -1
+tam_vetAt		DW -1
+tam_vetAt2		DW -1
+count_letra    	DW -1
 word_to_find	DB 20 DUP(?)
-word_toUpper	DB 20 DUP(?)										
-file_buffer		DB 20 DUP('$')
+word_toUpper	DB 20 DUP(?)
+vazio			DB 20 DUP (0)
+cmd_line		DB 20 DUP (0)
+vet_ant      	DB 20 DUP('$')
+num_linha		DB 20 DUP('$')
+vet_atual    	DB 20 DUP('$')
 buffer_word		DB 20 DUP('$')
 buffer_read  	DB 20 DUP('$')
-ask_input   	DB "-- Que palavra voce quer buscar?", CR, LF, "$"
-erro_abre_arq	DB "-- Erro ao abrir o arquivo", CR, LF, "$"
-word_not_found	DB "-- Nao foram encontradas ocorrencias.", CR, LF, "$"
-word_found		DB "-- Fim das ocorrencias.", CR, LF, "$"
-outra_palavra?	DB "-- Quer buscar outra palavra? (S/N)", CR, LF, "$"
-sim_nao			DB "-- Por favor, responda somente S ou N.", "$"
+vet_atualUpper 	DB 20 DUP('$')
+eol         	DB CR, LF, "$"
 encerrando		DB "-- Encerrando.", CR, LF, "$"
+word_found		DB "-- Fim das ocorrencias.", CR, LF, "$"
+erro_abre_arq	DB "-- Erro ao abrir o arquivo", CR, LF, "$"
+sim_nao			DB "-- Por favor, responda somente S ou N.", "$"
+ask_input   	DB "-- Que palavra voce quer buscar?", CR, LF, "$"
+outra_palavra?	DB "-- Quer buscar outra palavra? (S/N)", CR, LF, "$"
+word_not_found	DB "-- Nao foram encontradas ocorrencias.", CR, LF, "$"
 pontuacao		DB "-- Nao e permitida pontuacao e acentuacao.", CR, LF, "$"
-buffer_resp		DB ?
-resp			DB ?
 linha			DB "Linha ", "$"
 dois_pontos		DB ": ", "$"
-num_linha		dw 20 DUP('$')
-file_name		DB "ola.txt", 0
-cmd_line		DB 255 DUP(0)
-
-
-
-
-
 .code
 
     .startup
@@ -104,6 +98,7 @@ arqAberto:
 	MOV file_handle, AX
 	
 ;inicializando variaveis e flags
+
 	MOV flag_encontrou, 0
 	MOV flag_fim_arq, 0
 	MOV flag_igual, 0
@@ -112,7 +107,17 @@ arqAberto:
 	MOV flag_sim, 0
 	
 	MOV tam_word, -1
+	MOV tam_vetAt, -1
 	MOV count_linha, 1
+
+	MOV quociente, 0
+	MOV resto, 0
+	MOV indice, -1
+
+	MOV CX, LENGTHOF vazio
+	LEA SI, vazio
+	LEA DI, num_linha
+	REP MOVSB
 
 	MOV CX, LENGTHOF vazio
 	LEA SI, vazio
@@ -328,7 +333,6 @@ leCharLoop1:
     INT 21H
 
 	MOV BX, count_letra
-	;i = BX
 	INC BX
 	CMP [buffer_read], ' '
 	JE fimLePalavra
@@ -400,10 +404,7 @@ imprime PROC NEAR
     LEA DX, linha
     INT 21H
 	;printa o número da linha
-	MOV AX, count_linha
-	ADD AX, '0'
-	MOV num_linha, AX
-	MOV[num_linha+1], '$'
+	CALL intToStr
 	MOV AH, PRINTSTR
     LEA DX, num_linha
     INT 21H
@@ -554,15 +555,49 @@ fimToUpper2:
 	RET
 toUpper ENDP
 
-; intToA PROC NEAR
-; 	MOV AX, count_linha
-; 	ADD AX, '0'
-; 	MOV num_linha, AX
-; 	MOV[num_linha+1], '$'
-; 	MOV AH, PRINTSTR
-;     LEA DX, num_linha
-;     INT 21H
-; 	RET
-; intToA ENDP
+intToStr PROC NEAR
+	MOV AX, count_linha
+	MOV resto, AL
+
+	MOV indice, -1
+	CMP resto, 100
+	JL dezena
+	MOV AX, 0
+	MOV AL, resto
+	MOV BL, 100
+	DIV BL
+	MOV quociente, AL
+	MOV resto, AH
+	MOV BX, indice
+	INC BX
+	ADD AL, '0'
+	MOV [num_linha+BX], AL
+	MOV indice, BX
+dezena:
+	CMP resto, 10
+	JL unidade
+	MOV AX, 0
+	MOV AL, resto
+	MOV BL, 10
+	DIV BL
+	MOV quociente, AL
+	MOV resto, AH
+	MOV BX, indice
+	INC BX
+	ADD AL, '0'
+	MOV [num_linha+BX], AL
+	MOV indice, BX
+unidade:
+
+	MOV BX, indice
+	INC BX
+	MOV AH, resto
+	ADD AH, '0'
+	MOV [num_linha+BX], AH
+	MOV indice, BX
+	MOV[num_linha+BX+1], '$'
+	
+	RET
+intToStr ENDP
 
 end
