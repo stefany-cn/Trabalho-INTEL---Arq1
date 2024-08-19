@@ -4,6 +4,7 @@
 
 CR          EQU 0DH
 LF          EQU 0AH
+TAB 		EQU 09H
 ABREARQ     EQU 3DH
 LEARQ       EQU 3FH
 FECHAARQ    EQU 3EH
@@ -387,20 +388,19 @@ leCharLoop1:
     MOV CX, 1
     INT 21H
 
-
-	CMP [buffer_read], '.'
-	JE pontoEVirgula
-	CMP [buffer_read], ','
-	JE pontoEVirgula
 	MOV BX, count_letra
 	INC BX
 	CMP [buffer_read], ' '
+	JE espaco
+	CMP [buffer_read], 9
 	JE espaco
 	MOV flag_espaco, 0
 	CMP [buffer_read], CR
 	JE flagIncLinha
 	CMP [buffer_read], LF
 	JE anteriorEraCR
+	CMP [buffer_read], 64
+	JLE testa
 	OR AX, AX 
 	JZ fimArq
 	MOV AL, [buffer_read]
@@ -409,7 +409,9 @@ leCharLoop1:
 	MOV [vet_atual+BX+2], '$'
 	MOV count_letra, BX
 	JMP leCharLoop1
-
+testa:
+	CMP [buffer_read], 33
+	JGE pontoEVirgula
 espaco:
 	INC flag_espaco
 	JMP fimLePalavra
