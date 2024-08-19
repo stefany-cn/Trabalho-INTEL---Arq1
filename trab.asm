@@ -4,6 +4,7 @@
 
 CR          EQU 0DH
 LF          EQU 0AH
+TAB 		EQU 09H
 ABREARQ     EQU 3DH
 LEARQ       EQU 3FH
 FECHAARQ    EQU 3EH
@@ -29,6 +30,7 @@ flag_resp		DB 0
 flag_igual		DB 0
 file_handle		DW 0										; Handler do arquivo
 indice_word		DW 0
+flag_espaco		DB 0
 flag_passou		DB 0
 flag_fim_arq	DB 0
 flag_inc_linha	DB 0
@@ -51,6 +53,7 @@ num_linha		DB 20 DUP('$')
 vet_atual    	DB 20 DUP('$')
 buffer_word		DB 20 DUP('$')
 buffer_read  	DB 20 DUP('$')
+buffer_palavra 	DB ?
 vet_atualUpper 	DB 20 DUP('$')
 eol         	DB CR, LF, "$"
 encerrando		DB "-- Encerrando.", "$"
@@ -60,7 +63,7 @@ sim_nao			DB "-- Por favor, responda somente S ou N.", "$"
 ask_input   	DB "-- Que palavra voce quer buscar?", CR, LF, "$"
 outra_palavra?	DB "-- Quer buscar outra palavra? (S/N)", CR, LF, "$"
 word_not_found	DB "-- Nao foram encontradas ocorrencias.", CR, LF, "$"
-pontuacao		DB "-- Nao e permitida pontuacao e acentuacao.", CR, LF, "$"
+pontuacao		DB "-- Por favor, digite apenas palavras.", CR, LF, "$"
 encontradas		DB "-- Foram encontradas as seguintes ocorrencias:", CR, LF, "$"
 linha			DB "Linha ", "$"
 dois_pontos		DB ": ", "$"
@@ -199,13 +202,13 @@ voltaDiferentes:
 	INC count_linha
 pulaIncLinha:
 	;le palavra do arquivo
-	CALL lePalavraArq							
+	CALL lePalavraArq
 voltaDeAchou:
 	
 	CALL comparaPalavra
 	CMP flag_igual, 1
 	JNE voltaDiferentes
-
+	
 	CALL imprime
 	CMP flag_fim_arq, 1
 	JNE voltaDeAchou
@@ -385,18 +388,19 @@ leCharLoop1:
     MOV CX, 1
     INT 21H
 
-	CMP [buffer_read], '.'
-	JE pontoEVirgula
-	CMP [buffer_read], ','
-	JE pontoEVirgula
 	MOV BX, count_letra
 	INC BX
 	CMP [buffer_read], ' '
-	JE fimLePalavra
+	JE espaco
+	CMP [buffer_read], 9
+	JE espaco
+	MOV flag_espaco, 0
 	CMP [buffer_read], CR
 	JE flagIncLinha
 	CMP [buffer_read], LF
 	JE anteriorEraCR
+	CMP [buffer_read], 64
+	JLE testa
 	OR AX, AX 
 	JZ fimArq
 	MOV AL, [buffer_read]
@@ -405,7 +409,12 @@ leCharLoop1:
 	MOV [vet_atual+BX+2], '$'
 	MOV count_letra, BX
 	JMP leCharLoop1
-
+testa:
+	CMP [buffer_read], 33
+	JGE pontoEVirgula
+espaco:
+	INC flag_espaco
+	JMP fimLePalavra
 fimArq:
 	MOV flag_fim_arq, 1
 	JMP fimLePalavra
@@ -415,7 +424,7 @@ flagIncLinha:
 	JE fimLePalavra
 anteriorEraCR:
 	MOV [vet_atual], '$'
-fimLePalavra:
+fimLePalavra:	
 	MOV count_letra, -1
 	RET
 lePalavraArq ENDP
@@ -425,6 +434,9 @@ lePalavraArq ENDP
 comparaPalavra PROC NEAR
 	CALL toUpper
 	CALL toUpperVetAtual
+
+	CMP flag_espaco, 1
+	JG fimComparaPalavra
 contVetAtual:
 ;calcula o tamanho da palavra atual
 	MOV BX, tam_vetAt
@@ -519,6 +531,8 @@ pulaFrase:
 	CALL lePalavraArq
 	CMP flag_fim_arq, 1
 	JE pulaVetProx
+	CMP flag_espaco, 1
+	JG pulaVetProx
 	;printa a proxima palavra
 	MOV AH, PRINTSTR
     LEA DX, vet_atual
@@ -528,7 +542,6 @@ pulaVetProx:
 	MOV AH, PRINTSTR
     LEA DX, eol
     INT 21H
-	;MOV count_letra, -1
 	RET
 imprime ENDP
 ;======================== 	FIM FUNC PARA IMPRIMIR 	 ====================================
